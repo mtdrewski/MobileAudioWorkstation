@@ -9,8 +9,20 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.mobileaudioworkstationkotlin.bluetooth.BluetoothController
+import com.example.mobileaudioworkstationkotlin.bluetooth.LocalBluetoothDevice
 import com.example.mobileaudioworkstationkotlin.recorder.AudioPlayer
 import com.example.mobileaudioworkstationkotlin.recorder.AudioRecorder
 import java.io.File
@@ -30,7 +42,30 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setButtons()
+
+        val bluetoothController = BluetoothController(this)
+        val pairedDevicesList = findViewById<ComposeView>(R.id.pairedDevicesList)
+        pairedDevicesList.setContent {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(bluetoothController.pairedDevices.value) { device ->
+                    Text(
+                        text = device.name ?: "(No name)",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onClick(device) }
+                            .padding(16.dp)
+                    )
+                }
+            }
+        }
+        Toast.makeText(this, "Ehhh ${bluetoothController.pairedDevices.value}",Toast.LENGTH_LONG).show()
+
     }
+
+    private fun onClick(device: LocalBluetoothDevice) {
+
+    }
+
 
     private val startRecordButton: Button by lazy {
         findViewById(R.id.startRecordButton)
