@@ -11,11 +11,9 @@ import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
-import com.example.mobileaudioworkstationkotlin.bluetooth.domain.ConnectionResult
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
+import com.example.mobileaudioworkstationkotlin.piano.NotesPlayer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -50,56 +48,35 @@ class BluetoothController (
     private var currentClientSocket: BluetoothSocket? = null
 
     var pairedDevices = MutableStateFlow<List<LocalBluetoothDevice>>(emptyList())
-    var isConnected = MutableStateFlow(false)
-    var errors = MutableStateFlow("")
-    private val bluetoothStateReceiver = BluetoothStateReceiver { isConnectedLocal, bluetoothDevice ->
-        if(bluetoothAdapter?.bondedDevices?.contains(bluetoothDevice) == true) {
-            Toast.makeText(context, "okay, okay okay", Toast.LENGTH_LONG)
-            isConnected.update { isConnectedLocal }
-        } else {
-            CoroutineScope(Dispatchers.IO).launch {
-                errors.emit("Can't connect to a non-paired device.")
-            }
-        }
-    }
-
+    var localConnectingThread = ConnectingThread()
     init {
         updatePairedDevices()
-        context.registerReceiver(
-            bluetoothStateReceiver,
-            IntentFilter().apply {
-                addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)
-                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
-            }
-        )
-
     }
 
-    fun startBluetoothServer(): Flow<ConnectionResult> {
-        return flow {
+
+    inner class StartBluetoothServerThread: Thread() {
+        override fun run() {
             if(!hasPermission(connectPermission)) {
                 throw SecurityException("No BLUETOOTH_CONNECT permission")
             }
             currentServerSocket = bluetoothAdapter?.listenUsingRfcommWithServiceRecord("piano_service", UUID.fromString(SERVICE_UUID))
-            var shouldLoop = true
-            while(shouldLoop) {
-                currentClientSocket = try {
-                    currentServerSocket?.accept()
+            while(true) {
+                try {
+                    currentClientSocket = currentServerSocket?.accept()
+                    localConnectingThread.start()
+                    Log.i("BLUETOOTH", "CONNECTION ESTABLISHED - SERVER")
                 } catch(e: IOException) {
-                    shouldLoop = false
-                    null
-                }
-                emit(ConnectionResult.ConnectionEstablished)
-                currentClientSocket?.let {
-                    currentServerSocket?.close()
+                    break
                 }
             }
+
+
         }
     }
 
-    fun connectToDevice(device: LocalBluetoothDevice): Flow<ConnectionResult>{
-        return flow {
+
+    inner class ConnectToDeviceThread(private val device: LocalBluetoothDevice): Thread(){
+        override fun run() {
             if(!hasPermission(connectPermission)) {
                 throw SecurityException("No BLUETOOTH_CONNECT permission")
             }
@@ -112,23 +89,43 @@ class BluetoothController (
             currentClientSocket?.let { socket ->
                 try {
                     socket.connect()
-                    emit(ConnectionResult.ConnectionEstablished)
+                    Log.i("BLUETOOTH", "CONNECTION ESTABLISHED - CLIENT")
+                    localConnectingThread.start()
                 } catch(e: IOException) {
                     socket.close()
                     currentClientSocket = null
-                    emit(ConnectionResult.Error("Connection was interrupted"))
                 }
             }
-        }.onCompletion {
-            closeConnection()
-        }.flowOn(Dispatchers.IO)
+        }
     }
 
-    fun release(){
-        closeConnection()
-        context.unregisterReceiver(bluetoothStateReceiver)
+    inner class ConnectingThread() : Thread() {
+
+        val localNotesPlayer = NotesPlayer(context)
+        override fun run() {
+            while(true) {
+                try {
+                    val inputStream = currentClientSocket!!.inputStream
+                    val note: Int = inputStream.read()
+                    Log.i("BLUETOOTH", "connected thread received $note")
+                    localNotesPlayer.playNote(note)
+                } catch(e: IOException) {
+                    Log.e("BLUETOOTH", "disconnected", e)
+                }
+            }
+        }
+
+        fun write(note: Int) {
+            try {
+                currentClientSocket!!.outputStream.write(note)
+                Log.i("BLUETOOTH", "connected thread wrote to outputStream: $note")
+            } catch(e: IOException) {
+                Log.e("BLUETOOTH", "Exception during write", e)
+            }
+        }
     }
-    private fun closeConnection(){
+
+    fun release() {
         currentClientSocket?.close()
         currentServerSocket?.close()
         currentClientSocket = null

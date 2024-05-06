@@ -10,6 +10,7 @@ import android.os.Handler
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.example.mobileaudioworkstationkotlin.bluetooth.BluetoothController
 
 
 class PianoView(context: Context?, attrs: AttributeSet?) :
@@ -17,10 +18,15 @@ class PianoView(context: Context?, attrs: AttributeSet?) :
     private val pianoKeys: ArrayList<PianoKey> = ArrayList()
     private var PianoKeyWidth = 0
     private var height = 0
-    private val soundPlayer: NotesPlayer
+    private var soundPlayer: NotesPlayer
 
     init {
         soundPlayer = NotesPlayer(context)
+    }
+
+    private lateinit var connectingThread: BluetoothController.ConnectingThread
+    fun setConnectingThread(thread: BluetoothController.ConnectingThread){
+        connectingThread = thread
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -95,6 +101,10 @@ class PianoView(context: Context?, attrs: AttributeSet?) :
                         soundPlayer.stopNote(key.soundID)
                         invalidate()
                     }, 200)
+
+                    if(connectingThread.isAlive) {
+                        connectingThread.write(key.soundID)
+                    }
                 }
                 invalidate()
             }

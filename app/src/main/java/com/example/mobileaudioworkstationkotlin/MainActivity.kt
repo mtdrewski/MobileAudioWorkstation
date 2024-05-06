@@ -25,6 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.mobileaudioworkstationkotlin.bluetooth.BluetoothController
 import com.example.mobileaudioworkstationkotlin.bluetooth.LocalBluetoothDevice
+import com.example.mobileaudioworkstationkotlin.piano.PianoView
 import com.example.mobileaudioworkstationkotlin.recorder.AudioPlayer
 import com.example.mobileaudioworkstationkotlin.recorder.AudioRecorder
 import kotlinx.coroutines.launch
@@ -62,7 +63,9 @@ class MainActivity : ComponentActivity() {
             arrayOf(connectPermission),
             0
         )
+
         bluetoothController = BluetoothController(this)
+        findViewById<PianoView>(R.id.pianoView).setConnectingThread(bluetoothController.localConnectingThread)
 
         val pairedDevicesList = findViewById<ComposeView>(R.id.pairedDevicesList)
         findViewById<Button>(R.id.startServerButton).setOnClickListener {startServer()}
@@ -81,25 +84,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    fun showToast(toast: String?) {
-        runOnUiThread {
-            Toast.makeText(this@MainActivity, toast, Toast.LENGTH_SHORT).show()
-        }
-    }
 
     private fun startServer(){
-        thread {
-            lifecycleScope.launch {
-                bluetoothController.startBluetoothServer().collect() { showToast(it.toString()) }
-            }
-        }
+        bluetoothController.StartBluetoothServerThread().start()
     }
     private fun onClickDevice(device: LocalBluetoothDevice) {
-        thread {
-            lifecycleScope.launch {
-                bluetoothController.connectToDevice(device).collect { showToast(it.toString()) }
-            }
-        }
+        bluetoothController.ConnectToDeviceThread(device).start()
     }
 
     override fun onDestroy() {
