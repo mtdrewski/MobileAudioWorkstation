@@ -22,18 +22,13 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.example.mobileaudioworkstationkotlin.bluetooth.BluetoothController
-import com.example.mobileaudioworkstationkotlin.bluetooth.LocalBluetoothDevice
 import com.example.mobileaudioworkstationkotlin.piano.PianoView
 import com.example.mobileaudioworkstationkotlin.recorder.AudioPlayer
 import com.example.mobileaudioworkstationkotlin.recorder.AudioRecorder
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.Date
 import java.util.Locale
-import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
 
@@ -56,28 +51,59 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        setButtons()
 
         ActivityCompat.requestPermissions(
             this,
             arrayOf(connectPermission),
             0
         )
-
         bluetoothController = BluetoothController(this)
+
+        setButtons()
+        setViews()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        bluetoothController.release()
+    }
+    private fun setViews(){
         findViewById<PianoView>(R.id.pianoView).setConnectingThread(bluetoothController.localConnectingThread)
-
-        val pairedDevicesList = findViewById<ComposeView>(R.id.pairedDevicesList)
-        findViewById<Button>(R.id.startServerButton).setOnClickListener {startServer()}
-
-        pairedDevicesList.setContent {
+        findViewById<ComposeView>(R.id.pairedDevicesList).setContent {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(bluetoothController.pairedDevices.value) { device ->
                     Text(
                         text = device.name ?: "(No name)",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onClickDevice(device) }
+                            .clickable { bluetoothController.ConnectToDeviceThread(device).start() }
+                            .padding(16.dp)
+                    )
+                }
+            }
+        }
+        val soundBankList = mutableListOf("SimplePianoNotes", "SynthesizedPianoNotes")
+        findViewById<ComposeView>(R.id.soundBankList).setContent {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(soundBankList) { soundBank ->
+                    Text(
+                        text = soundBank,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { findViewById<PianoView>(R.id.pianoView).setSoundBank(soundBank) }
+                            .padding(16.dp)
+                    )
+                }
+            }
+        }
+        findViewById<ComposeView>(R.id.remoteSoundBankList).setContent {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(soundBankList) { soundBank ->
+                    Text(
+                        text = soundBank,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { bluetoothController.localConnectingThread.localNotesPlayer.setSoundBank(soundBank)}
                             .padding(16.dp)
                     )
                 }
@@ -85,17 +111,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startServer(){
-        bluetoothController.StartBluetoothServerThread().start()
-    }
-    private fun onClickDevice(device: LocalBluetoothDevice) {
-        bluetoothController.ConnectToDeviceThread(device).start()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        bluetoothController.release()
-    }
 
     private val startRecordButton: Button by lazy {
         findViewById(R.id.startRecordButton)
@@ -117,6 +132,10 @@ class MainActivity : ComponentActivity() {
             return
         }
         setButtonsEnabled(false)
+
+        findViewById<Button>(R.id.startServerButton).setOnClickListener {
+            bluetoothController.StartBluetoothServerThread().start()
+        }
 
         val audioCapturesDirectory = File(getExternalFilesDir(null), "/AudioCaptures")
         var bufferedFile: File? = null

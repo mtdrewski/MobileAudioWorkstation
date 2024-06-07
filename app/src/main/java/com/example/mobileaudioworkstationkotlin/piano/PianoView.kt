@@ -29,6 +29,10 @@ class PianoView(context: Context?, attrs: AttributeSet?) :
         connectingThread = thread
     }
 
+    fun setSoundBank(soundBank: String){
+        soundPlayer.setSoundBank(soundBank)
+    }
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         PianoKeyWidth = w / notesNumber

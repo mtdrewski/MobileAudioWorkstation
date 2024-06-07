@@ -69,8 +69,6 @@ class BluetoothController (
                     break
                 }
             }
-
-
         }
     }
 

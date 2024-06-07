@@ -6,10 +6,10 @@ import android.media.MediaPlayer
 
 class NotesPlayer(private val context: Context?) {
     private val threadMap: HashMap<Int, PlayThread?> = HashMap()
-    private var soundBank = "SynthesizedPianoNotes"
+    private var soundBank = "SimplePianoNotes"
 
     fun playNote(note: Int) {
-        val thread: PlayThread = PlayThread(note)
+        val thread = PlayThread(note)
         threadMap[note] = thread
         thread.start()
     }
